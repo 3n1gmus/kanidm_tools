@@ -1,0 +1,21 @@
+version = "2"
+db_path = "/data/kanidm.db"
+log_level = "info"
+
+# The domain and origin for your server
+domain = "idm.local"
+origin = "https://localhost:8443"
+
+# Networking
+bindaddress = "0.0.0.0:8443"
+ldapbindaddress = "0.0.0.0:3636"
+
+# Security (We will generate these files in Step 3)
+tls_chain = "/data/chain.pem"
+tls_key = "/data/key.pem"
+
+# Automated Backups (as discussed earlier)
+[online_backup]
+path = "/data/backups/"
+schedule = "0 2 * * *"
+versions = 7
