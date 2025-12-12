@@ -1,0 +1,22 @@
+The update-ca-certificates utility in Debian manages the system's trust store, but you must place the CA file in the correct location first.
+
+Run these commands on your Debian client machine:
+
+Bash
+
+# 1. Create a logical directory for your CA (optional, but good practice)
+sudo mkdir -p /usr/local/share/ca-certificates/synthrealm
+
+# 2. Copy the CA certificate into the directory, ensuring it has the .crt extension
+sudo cp CA-Synthrealm.net.crt /usr/local/share/ca-certificates/synthrealm/synthrealm-ca.crt
+
+# 3. Update the system trust store
+# This command reads the file, converts it, and creates the necessary links
+sudo update-ca-certificates
+Verification: You should see output similar to this:
+
+Updating certificates in /etc/ssl/certs...
+1 added, 0 removed; done.
+Running hooks in /etc/ca-certificates/update.d...
+done.
+This confirms that the operating system now trusts any certificate (like your Kanidm server's) signed by your CA-Synthrealm.net.
