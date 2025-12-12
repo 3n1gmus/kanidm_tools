@@ -1,0 +1,159 @@
+📂 1. Create the Directory Structure
+First, create a folder for your setup and an empty directory for the data volume.
+
+Bash
+
+mkdir kanidm-setup && cd kanidm-setup
+mkdir data
+📝 2. The Configuration Files
+You need two files in your kanidm-setup folder: a docker-compose.yml to run the service and a server.toml to configure Kanidm's internals.
+
+File A: docker-compose.yml
+This defines the container and maps the necessary ports for the WebUI and LDAPS.
+
+YAML
+
+services:
+  kanidm:
+    image: kanidm/server:latest
+    container_name: kanidm
+    restart: unless-stopped
+    ports:
+      - "8443:8443" # WebUI and CLI API
+      - "3636:3636" # LDAPS (Legacy support)
+    volumes:
+      - ./data:/data
+File B: server.toml
+Place this file inside your ./data folder. Crucial: The origin must match the URL you type into your browser.
+
+Ini, TOML
+
+version = "2"
+db_path = "/data/kanidm.db"
+log_level = "info"
+
+# The domain and origin for your server
+domain = "idm.local"
+origin = "https://localhost:8443"
+
+# Networking
+bindaddress = "0.0.0.0:8443"
+ldapbindaddress = "0.0.0.0:3636"
+
+# Security (We will generate these files in Step 3)
+tls_chain = "/data/chain.pem"
+tls_key = "/data/key.pem"
+
+# Automated Backups (as discussed earlier)
+[online_backup]
+path = "/data/backups/"
+schedule = "0 2 * * *"
+versions = 7
+🚀 3. The "First Boot" Sequence
+Since Kanidm mandates encrypted connections, you must generate certificates before the container can start properly.
+
+Step 1: Generate Self-Signed Certificates Run this one-time command to let Kanidm build its own SSL certificates:
+
+Bash
+
+docker run --rm -v $(pwd)/data:/data kanidm/server:latest \
+    /sbin/kanidmd cert-generate
+Step 2: Start the Server Now you can bring the system online:
+
+Bash
+
+docker compose up -d
+Step 3: Recover the Admin Passwords By default, the admin accounts have no passwords. You must "recover" them to set your initial access.
+
+Bash
+
+# Get the password for the System Admin
+docker exec -it kanidm kanidmd recover-account admin
+
+# Get the password for the Identity/User Admin
+docker exec -it kanidm kanidmd recover-account idm_admin
+Copy the temporary passwords that appear in your terminal.
+
+🖥️ 4. Accessing the WebUI
+Open your browser and navigate to:
+
+https://localhost:8443
+
+[!IMPORTANT] Since you are using self-signed certificates, your browser will show a "Your connection is not private" warning. Since this is your local offline lab, click Advanced -> Proceed to localhost.
+
+🧪 5. Verification
+To ensure everything is working, log in with the idm_admin account you just recovered. You should see the user dashboard.
+
+If you want to test the CLI from your host machine (assuming you've installed the kanidm client package), create a small config file at ~/.config/kanidm:
+
+Ini, TOML
+
+uri = "https://localhost:8443"
+verify_ca = false
+Then run:
+
+Bash
+
+kanidm login --name idm_admin
+📊 Setup Checklist
+[ ] server.toml created in ./data
+
+[ ] cert-generate command finished successfully
+
+[ ] Admin passwords recovered and saved
+
+[ ] Ports 8443 and 3636 are open in your firewall
+
+:
+
+1️⃣ Create your first "Human" User
+You shouldn't log in to daily apps or desktops with the "emergency" admin accounts. You need to create a Person entry for yourself.
+
+Using the CLI (Fastest): Replace jdoe with your preferred username.
+
+Bash
+
+# 1. Create the user
+docker exec -it kanidm kanidm person create jdoe "John Doe"
+
+# 2. Generate a password reset token
+docker exec -it kanidm kanidm person credential create-reset-token jdoe
+Result: You will get a long URL. If you open that in your browser, you can set your actual password.
+
+2️⃣ Make the user "Linux-Ready" (Enable POSIX)
+By default, a user in Kanidm is just a web identity. To log in to a Linux desktop, they need POSIX attributes (a UID, GID, and shell). Kanidm 1.8 makes this easy by auto-calculating unique IDs from the user's UUID.
+
+Run this to enable Linux features:
+
+Bash
+
+docker exec -it kanidm kanidm person posix set jdoe --shell /bin/bash
+[!TIP] Why do this? Without this step, your Linux desktop won't "see" the user because it won't have a User ID number (UID).
+
+3️⃣ Create a "Linux Users" Group
+It is best practice to manage permissions via groups. You can create a group and grant it POSIX attributes as well.
+
+Bash
+
+# 1. Create the group
+docker exec -it kanidm kanidm group create linux_users
+
+# 2. Enable POSIX for the group
+docker exec -it kanidm kanidm group posix set linux_users
+
+# 3. Add yourself to the group
+docker exec -it kanidm kanidm group add-members linux_users jdoe
+📂 The Big Picture: What's next for the Desktop?
+Once your user is created in the WebUI/Server, you will need to switch to your Linux Desktop (the client) to join it to the domain.
+
+The general process on the Desktop side will be:
+
+Install kanidm-unixd: This is the service that talks to your server.
+
+Configure /etc/kanidm/config: Point it to https://hylia.synthrealm.net:8443.
+
+Trust the Certificate: Since you are using self-signed certs, you'll need to copy chain.pem to the desktop and tell Kanidm where it is.
+
+Run the join command: kanidm login on the desktop to link them.
+
+Would you like me to walk you through the configuration file you'll need on your Linux Desktop to make this connection work?
